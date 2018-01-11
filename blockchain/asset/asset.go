@@ -3,7 +3,6 @@ package asset
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 
 	"github.com/golang/groupcache/lru"
@@ -26,7 +25,8 @@ import (
 const (
 	maxAssetCache = 1000
 	assetPrefix   = "ASS:"
-	aliasPrefix   = "ALS:"
+	//AliasPrefix is asset alias prefix
+	AliasPrefix = "ALS:"
 	//ExternalAssetPrefix is external definition assets prefix
 	ExternalAssetPrefix = "EXA"
 )
@@ -54,8 +54,8 @@ func getBTMAsset() *Asset {
 		InitialBlockHash:  genesisBlock.Hash()}
 }
 
-func aliasKey(name string) []byte {
-	return []byte(aliasPrefix + name)
+func AliasKey(name string) []byte {
+	return []byte(AliasPrefix + name)
 }
 
 //Key asset store prefix
@@ -129,7 +129,7 @@ func (reg *Registry) Define(ctx context.Context, xpubs []chainkd.XPub, quorum in
 		return nil, ErrInternalAsset
 	}
 
-	if existed := reg.db.Get(aliasKey(alias)); existed != nil {
+	if existed := reg.db.Get(AliasKey(alias)); existed != nil {
 		return nil, ErrDuplicateAlias
 	}
 
@@ -177,7 +177,7 @@ func (reg *Registry) Define(ctx context.Context, xpubs []chainkd.XPub, quorum in
 	}
 
 	storeBatch := reg.db.NewBatch()
-	storeBatch.Set(aliasKey(alias), []byte(asset.AssetID.String()))
+	storeBatch.Set(AliasKey(alias), []byte(asset.AssetID.String()))
 	storeBatch.Set(Key(&asset.AssetID), ass)
 	storeBatch.Write()
 
@@ -236,6 +236,14 @@ func (reg *Registry) findByID(ctx context.Context, id *bc.AssetID) (*Asset, erro
 	return asset, nil
 }
 
+func (reg *Registry) GetIDByAlias(alias string) (string, error) {
+	rawID := reg.db.Get(AliasKey(alias))
+	if rawID == nil {
+		return "", ErrFindAsset
+	}
+	return string(rawID), nil
+}
+
 // FindByAlias retrieves an Asset record along with its signer,
 // given an asset alias.
 func (reg *Registry) FindByAlias(ctx context.Context, alias string) (*Asset, error) {
@@ -246,7 +254,7 @@ func (reg *Registry) FindByAlias(ctx context.Context, alias string) (*Asset, err
 		return reg.findByID(ctx, cachedID.(*bc.AssetID))
 	}
 
-	rawID := reg.db.Get(aliasKey(alias))
+	rawID := reg.db.Get(AliasKey(alias))
 	if rawID == nil {
 		return nil, errors.Wrapf(ErrFindAsset, "no such asset, alias: %s", alias)
 	}
@@ -268,28 +276,17 @@ func (reg *Registry) GetAliasByID(id string) string {
 		return "btm"
 	}
 
-	assetID := &bc.AssetID{}
-	if err := assetID.UnmarshalText([]byte(id)); err != nil {
-		return ""
-	}
+	aliasIter := reg.db.IteratorPrefix([]byte(AliasPrefix))
+	defer aliasIter.Release()
 
-	//external assets
-	if definitionByte := reg.db.Get(CalcExtAssetKey(assetID)); definitionByte != nil {
-		definitionMap := make(map[string]interface{})
-		if err := json.Unmarshal(definitionByte, &definitionMap); err == nil {
-			if alias, ok := definitionMap["name"]; ok {
-				return fmt.Sprintf("%v", alias)
-			}
+	for aliasIter.Next() {
+		if rawID := aliasIter.Value(); string(rawID) == id {
+			aliasKey := aliasIter.Key()
+			return string(aliasKey[len(AliasPrefix):])
 		}
-		return ""
 	}
 
-	//local assets
-	asset, err := reg.findByID(nil, assetID)
-	if err != nil {
-		return ""
-	}
-	return *asset.Alias
+	return ""
 }
 
 // ListAssets returns the accounts in the db
