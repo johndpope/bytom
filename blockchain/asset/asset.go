@@ -3,6 +3,7 @@ package asset
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/golang/groupcache/lru"
@@ -25,6 +26,8 @@ const (
 	maxAssetCache = 1000
 	assetPrefix   = "ASS:"
 	aliasPrefix   = "ALS:"
+	//ExternalAssetPrefix is external definition assets prefix
+	ExternalAssetPrefix = "EXA"
 )
 
 func aliasKey(name string) []byte {
@@ -35,6 +38,12 @@ func aliasKey(name string) []byte {
 func Key(id *bc.AssetID) []byte {
 	name := id.String()
 	return []byte(assetPrefix + name)
+}
+
+//CalcExtAssetKey return store external assets key
+func CalcExtAssetKey(id *bc.AssetID) []byte {
+	name := id.String()
+	return []byte(ExternalAssetPrefix + name)
 }
 
 // pre-define errors for supporting bytom errorFormatter
@@ -230,13 +239,28 @@ func (reg *Registry) FindByAlias(ctx context.Context, alias string) (*Asset, err
 }
 
 func (reg *Registry) GetAliasByID(id string) string {
+	//btm
 	if id == consensus.BTMAssetID.String() {
 		return "btm"
 	}
+
 	assetID := &bc.AssetID{}
 	if err := assetID.UnmarshalText([]byte(id)); err != nil {
 		return ""
 	}
+
+	//external assets
+	if definitionByte := reg.db.Get(CalcExtAssetKey(assetID)); definitionByte != nil {
+		definitionMap := make(map[string]interface{})
+		if err := json.Unmarshal(definitionByte, &definitionMap); err == nil {
+			if alias, ok := definitionMap["name"]; ok {
+				return fmt.Sprintf("%v", alias)
+			}
+		}
+		return ""
+	}
+
+	//local assets
 	asset, err := reg.findByID(nil, assetID)
 	if err != nil {
 		return ""
