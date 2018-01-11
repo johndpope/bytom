@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/sha3"
 
 	"github.com/bytom/blockchain/signers"
+	cfg "github.com/bytom/config"
 	"github.com/bytom/consensus"
 	"github.com/bytom/crypto/ed25519"
 	"github.com/bytom/crypto/ed25519/chainkd"
@@ -29,6 +30,29 @@ const (
 	//ExternalAssetPrefix is external definition assets prefix
 	ExternalAssetPrefix = "EXA"
 )
+
+func getBTMAsset() *Asset {
+	genesisBlock := cfg.GenerateGenesisBlock()
+	signer := &signers.Signer{Type: "internal"}
+	alias := "btm"
+
+	defaultTags := make(map[string]interface{})
+	defaultTags["issue"] = "Bytom Official"
+
+	defitionMap := make(map[string]interface{})
+	defitionMap["name"] = "btm"
+	defitionBytes, _ := serializeAssetDef(defitionMap)
+
+	return &Asset{
+		Signer:            signer,
+		AssetID:           *consensus.BTMAssetID,
+		Alias:             &alias,
+		VMVersion:         1,
+		Tags:              defaultTags,
+		DefinitionMap:     defitionMap,
+		RawDefinitionByte: defitionBytes,
+		InitialBlockHash:  genesisBlock.Hash()}
+}
 
 func aliasKey(name string) []byte {
 	return []byte(aliasPrefix + name)
@@ -90,13 +114,13 @@ type Asset struct {
 	IssuanceProgram   chainjson.HexBytes     `json:"issue_program"`
 	InitialBlockHash  bc.Hash                `json:"init_blockhash"`
 	Tags              map[string]interface{} `json:"tags"`
-	RawDefinitionByte []byte                 `json:"raw_definition_byte"`
+	RawDefinitionByte chainjson.HexBytes     `json:"raw_definition_byte"`
 	DefinitionMap     map[string]interface{} `json:"definition"`
 }
 
 //RawDefinition return asset in the raw format
 func (asset *Asset) RawDefinition() []byte {
-	return asset.RawDefinitionByte
+	return []byte(asset.RawDefinitionByte)
 }
 
 // Define defines a new Asset.
@@ -270,7 +294,7 @@ func (reg *Registry) GetAliasByID(id string) string {
 
 // ListAssets returns the accounts in the db
 func (reg *Registry) ListAssets(id string) ([]*Asset, error) {
-	assets := []*Asset{}
+	assets := []*Asset{getBTMAsset()}
 	assetIter := reg.db.IteratorPrefix([]byte(assetPrefix + id))
 	defer assetIter.Release()
 
