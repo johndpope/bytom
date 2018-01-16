@@ -176,6 +176,24 @@ var createAccountAddressCmd = &cobra.Command{
 	},
 }
 
+var createAccountPubkeyCmd = &cobra.Command{
+	Use:   "create-account-pubkey <accountID | alias>",
+	Short: "Create an account pubkey",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		var ins = struct {
+			AccountInfo string    `json:"account_info"`
+		}{AccountInfo: args[0]}
+
+		data, exitCode := util.ClientCall("/create-account-pubkey", &ins)
+		if exitCode != util.Success {
+			os.Exit(exitCode)
+		}
+
+		printJSON(data)
+	},
+}
+
 var listBalancesCmd = &cobra.Command{
 	Use:   "list-balances",
 	Short: "List the accounts balances",

@@ -54,3 +54,22 @@ func (m *Manager) CreateAddressReceiver(ctx context.Context, accountInfo string)
 		ExpiresAt:      program.ExpiresAt,
 	}, nil
 }
+
+func (m *Manager) CreatePubkeyInfo(ctx context.Context, accountInfo string) (*AccountPubkey, error) {
+	accountID := accountInfo
+	if s, err := m.FindByAlias(ctx, accountInfo); err == nil {
+		accountID = s.ID
+	}
+
+	accountPubkey, err := m.createPubkey(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AccountPubkey{
+		Root:      	accountPubkey.Root,
+		Pubkey:    	accountPubkey.Pubkey,
+		Path: 		accountPubkey.Path,
+		Index:		accountPubkey.Index,
+	}, nil
+}
